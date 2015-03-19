@@ -8,6 +8,7 @@ import numpy as np
 import csv
 import matplotlib.pyplot as plt
 from matplotlib import cm
+import pickle
 from mpl_toolkits.mplot3d import Axes3D
 
 #########
@@ -22,6 +23,7 @@ class Agent:
         self.iter = 0
         self.n0 = float(n0)
         self.env = environment
+        self.method = ""
 
         # initialize table for counting action-state pairs occurrences
         self.N = np.zeros((self.env.dl_values, self.env.pl_values, self.env.act_values))
@@ -57,6 +59,7 @@ class Agent:
 
         # Initialise
         self.iter = iterations
+        self.method = "MC_control"
         count_wins = 0
         episode_pairs = []
 
@@ -119,6 +122,7 @@ class Agent:
 
         self.mlambda = float(mlambda)
         self.iter = iterations
+        self.method = "Sarsa_control"
 
         count_wins = 0
 
@@ -156,7 +160,7 @@ class Agent:
             if episode%10000==0: print "Episode: %d, Reward: %d" %(episode, s_next.rew)
             count_wins = count_wins+1 if s_next.rew==1 else count_wins
 
-        print count_wins
+        print float(count_wins)/self.iter*100
 
         # Derive value function
         for d in xrange(self.env.dl_values):
@@ -164,50 +168,41 @@ class Agent:
                 self.V[d,p] = max(self.AV[d, p, :])
 
 
-    # store in a txt file
-    def store_statevalue_function(self):
-
-        with open('../Data/results.csv', 'wb') as csvout:
-
-            write_out = csv.writer(csvout, delimiter = ',')
-            for row in self.V:
-                write_out.writerow(row)
-
-
-
     # plot value function learnt
     def show_statevalue_function(self):
+
+        def get_stat_val(x,y):
+            return self.V[x,y]
 
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
 
-        X = np.arange(-5,5,0.25)
-        Y = np.arange(-5,5,0.25)
+        X = np.arange(0, self.env.dl_values-1, 1)
+        Y = np.arange(0, self.env.pl_values-1, 1)
         X,Y = np.meshgrid(X,Y)
-        R = np.sqrt(X**2 + Y**2)
-        Z = np.sin(R)
+        Z = get_stat_val(X,Y)
         surf = ax.plot_surface(X, Y, Z, rstride=1, cstride=1, cmap=cm.coolwarm, linewidth=0, antialiased=False)
-        ax.set_zlim(-1.01,1.01)
         plt.show()
 
-        x = np.linspace(0, 1, self.env.pl_values)
-        y = self.V[0,:]
-        plt.figure()
-        plt.plot(x, y, 'r')
+        my_method = self.method
+        my_iterations = str(self.iter)
+        pickle.dump(self.V, open("../Data/val_func_%s_%s.pkl" %(my_iterations, my_method), "wb"))
 
-        x = np.linspace(0, 1, self.env.pl_values)
-        y = self.V[1,:]
-        plt.plot(x, y, 'g')
 
-        x = np.linspace(0, 1, self.env.pl_values)
-        y = self.V[2,:]
-        plt.plot(x, y, 'b')
+    def show_previous_statevalue_function(self, path):
+        V = pickle.load(open(path,"rb"))
 
-        x = np.linspace(0, 1, self.env.pl_values)
-        y = self.V[2,:]
-        plt.plot(x, y, 'k')
+        def get_stat_val(x,y):
+            return V[x,y]
 
-        plt.xlabel('x')
-        plt.ylabel('y')
-        plt.title('title')
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+
+        X = np.arange(0, self.env.dl_values-1, 1)
+        Y = np.arange(0, self.env.pl_values-1, 1)
+        X,Y = np.meshgrid(X,Y)
+        Z = get_stat_val(X,Y)
+        surf = ax.plot_surface(X, Y, Z, rstride=1, cstride=1, cmap=cm.coolwarm, linewidth=0, antialiased=False)
         plt.show()
+
+
