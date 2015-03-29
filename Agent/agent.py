@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 from matplotlib import cm
 from mpl_toolkits.mplot3d import Axes3D
 
+
 #########
 # Agent #
 #########
@@ -23,13 +24,10 @@ class Agent:
         self.n0 = float(n0)
         self.env = environment
 
-        # initialize table for counting action-state pairs occurrences
+        # initialize tables for (state, action) pairs occurrences, values, eligibility
         self.N = np.zeros((self.env.dl_values, self.env.pl_values, self.env.act_values))
-
-        # initialize action value function lookup table
-        self.AV = np.zeros((self.env.dl_values, self.env.pl_values, self.env.act_values))
-
-        # initialize value function
+        self.Q = np.zeros((self.env.dl_values, self.env.pl_values, self.env.act_values))
+        self.E = np.zeros((self.env.dl_values, self.env.pl_values, self.env.act_values))
         self.V = np.zeros((self.env.dl_values, self.env.pl_values))
 
 
@@ -49,7 +47,7 @@ class Agent:
         if random.random() < curr_epsilon:
             return Actions.hit if random.random()<0.5 else Actions.stick
         else:
-            return Actions.get_action(np.argmax(self.AV[state.dl_sum-1, state.pl_sum-1, :]))
+            return Actions.get_action(np.argmax(self.Q[state.dl_sum-1, state.pl_sum-1, :]))
 
 
     # play specified number of games, learning from experience using Monte-Carlo Control
@@ -62,11 +60,6 @@ class Agent:
 
         # Loop over episodes (complete game runs)
         for episode in xrange(self.iter):
-
-            ###################################################
-            # fai lista triplette visitate in ciascun episode #
-            # cosi eviti di attraversare tutta matrice        #
-            ###################################################
 
             # reset state action pair list
             episode_pairs = []
@@ -92,8 +85,8 @@ class Agent:
             # Update Action value function accordingly
             for curr_s, curr_a in episode_pairs:
                 step = 1.0  / (self.N[curr_s.dl_sum-1, curr_s.pl_sum-1, Actions.get_value(curr_a)])
-                error = my_state.rew - self.AV[curr_s.dl_sum-1, curr_s.pl_sum-1, Actions.get_value(curr_a)]
-                self.AV[curr_s.dl_sum-1, curr_s.pl_sum-1, Actions.get_value(curr_a)] += step * error
+                error = my_state.rew - self.Q[curr_s.dl_sum-1, curr_s.pl_sum-1, Actions.get_value(curr_a)]
+                self.Q[curr_s.dl_sum-1, curr_s.pl_sum-1, Actions.get_value(curr_a)] += step * error
 
             """
             for d in xrange(self.env.dl_values):
@@ -111,7 +104,7 @@ class Agent:
         # Derive value function
         for d in xrange(self.env.dl_values):
             for p in xrange(self.env.pl_values):
-                self.V[d,p] = max(self.AV[d, p, :])
+                self.V[d,p] = max(self.Q[d, p, :])
 
 
     # play specified number of games, learning from experience using TD Control (Sarsa)
@@ -141,17 +134,20 @@ class Agent:
                 a_next = self.eps_greedy_choice(s_next)
 
                 # update action value function
-                step = 1.0  / (self.N[s.dl_sum-1, s.pl_sum-1,  Actions.get_value(a)])
+                alpha = 1.0  / (self.N[s.dl_sum-1, s.pl_sum-1,  Actions.get_value(a)])
                 try:
-                    new = self.AV[s_next.dl_sum-1, s_next.pl_sum-1, Actions.get_value(a_next)]
+                    delta = s_next.rew + self.Q[s_next.dl_sum-1, s_next.pl_sum-1, Actions.get_value(a_next)] \
+                        - self.Q[s.dl_sum-1, s.pl_sum-1, Actions.get_value(a)]
                 except:
-                    new = 0
-                old = self.AV[s.dl_sum-1, s.pl_sum-1, Actions.get_value(a)]
-                self.AV[s.dl_sum-1, s.pl_sum-1, Actions.get_value(a)] += step * (s_next.rew + new - old)
+                    delta = s_next.rew - self.Q[s.dl_sum-1, s.pl_sum-1, Actions.get_value(a)]
+                self.E[s.dl_sum-1, s.pl_sum-1, Actions.get_value(a)] += 1
+                update = alpha*delta*self.E
+                self.Q = self.Q[s.dl_sum-1, s.pl_sum-1, Actions.get_value(a)]+update
+                self.E = self.mlambda*self.E
 
                 # reassign s and a
                 s = s_next
-                a= a_next
+                a = a_next
 
             if episode%10000==0: print "Episode: %d, Reward: %d" %(episode, s_next.rew)
             count_wins = count_wins+1 if s_next.rew==1 else count_wins
@@ -161,7 +157,17 @@ class Agent:
         # Derive value function
         for d in xrange(self.env.dl_values):
             for p in xrange(self.env.pl_values):
-                self.V[d,p] = max(self.AV[d, p, :])
+                self.V[d,p] = max(self.Q[d, p, :])
+
+
+    # compute feature
+    def feature_computation(self, state, action):
+
+        d_edges = [[1,4],[4,7],[7,10]]
+        p_edges = [[1,6],[4,9],[7,12],[10,15],[13,18],[16,21]]
+        actions = [0,1]
+
+        feature_vect = np.zeros(len(d_edges)*len(p_edges)*2)
 
 
     # store in a txt file
@@ -172,7 +178,6 @@ class Agent:
             write_out = csv.writer(csvout, delimiter = ',')
             for row in self.V:
                 write_out.writerow(row)
-
 
 
     # plot value function learnt
