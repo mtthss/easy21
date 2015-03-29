@@ -201,6 +201,7 @@ class Agent:
         X = np.arange(0, self.env.dl_values-1, 1)
         Y = np.arange(0, self.env.pl_values-1, 1)
         X,Y = np.meshgrid(X,Y)
+
         Z = get_stat_val(X,Y)
         surf = ax.plot_surface(X, Y, Z, rstride=1, cstride=1, cmap=cm.coolwarm, linewidth=0, antialiased=False)
         plt.show()
