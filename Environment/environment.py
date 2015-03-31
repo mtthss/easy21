@@ -5,6 +5,7 @@
 from Classes.classes import State, Actions, Colors, Card
 from Agent.agent import Agent
 import random
+import numpy as np
 
 
 ###############
@@ -83,20 +84,3 @@ class Environment:
         # draw a black card
         return Card(Colors.black,random.randint(self.card_min,self.card_max))
 
-########
-# Test #
-########
-
-game = Environment()
-agent = Agent(game, 100)
-agent.TD_control(1000000,0.5)
-
-agent.show_statevalue_function()
-
-game = Environment()
-agent = Agent(game, 100)
-agent.MC_control(1000000)
-agent.TD_control(500000, 0.95)
-
-agent.show_statevalue_function()
-agent.show_previous_statevalue_function("../Data/val_func_1000000_MC_control.pkl")
