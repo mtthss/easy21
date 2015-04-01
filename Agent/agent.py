@@ -2,7 +2,7 @@
 ###########
 # Imports #
 ###########
-from Classes.classes import Actions
+from Classes.classes import Actions, State
 import random
 import numpy as np
 import csv
@@ -131,12 +131,13 @@ class Agent:
 
 
     # play specified number of games, learning from experience using TD Control (Sarsa)
-    def TD_control(self, iterations, mlambda):
+    def TD_control(self, iterations, mlambda, avg_it):
 
         self.mlambda = float(mlambda)
         self.iter = iterations
         self.method = "Sarsa_control"
 
+        mse = []
         count_wins = 0
 
         # Loop over episodes (complete game runs)
@@ -184,10 +185,10 @@ class Agent:
         for d in xrange(self.env.dl_values):
             for p in xrange(self.env.pl_values):
                 self.V[d,p] = max(self.Q[d, p, :])
-
+        return self.Q
 
     # play specified number of games, learning from experience using TD Control (Sarsa) with Linear Approximation
-    def TD_control_linear(self, iterations, mlambda):
+    def TD_control_linear(self, iterations, mlambda, avg_it):
 
         self.mlambda = float(mlambda)
         self.iter = iterations
@@ -236,10 +237,26 @@ class Agent:
 
         print float(count_wins)/self.iter*100
 
+        self.Q = self.deriveQ()
+
         # Derive value function
         for d in xrange(self.env.dl_values):
             for p in xrange(self.env.pl_values):
                 self.V[d,p] = max(self.Q[d, p, :])
+
+        return self.Q
+
+
+    # derive Q from theta
+    def deriveQ(self):
+
+        temp_Q = np.zeros((self.env.dl_values, self.env.pl_values, self.env.act_values))
+        for i in xrange(self.env.dl_values):
+            for j in xrange(self.env.pl_values):
+                for k in xrange(self.env.act_values):
+                    phi = self.feature_computation(State(i,j), k)
+                    temp_Q[i,j,k] = sum(phi*self.theta)
+        return temp_Q
 
 
     # compute feature
@@ -262,6 +279,7 @@ class Agent:
         f = np.concatenate([feature_vect[:,:,0].reshape((1,len(self.d_edges)*len(self.p_edges)))[0],feature_vect[:,:,1].reshape((1,len(self.d_edges)*len(self.p_edges)))[0]])
         return f
 
+
     # store in a txt file
     def store_statevalue_function(self):
 
@@ -270,6 +288,12 @@ class Agent:
             write_out = csv.writer(csvout, delimiter = ',')
             for row in self.V:
                 write_out.writerow(row)
+
+
+    # store state action table
+    def store_Qvalue_function(self, linear=False):
+
+        pickle.dump(self.Q, open("Data/Qval_func_%s_%s.pkl" %(self.iter, self.method), "wb"))
 
 
     # plot value function learnt
