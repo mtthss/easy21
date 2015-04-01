@@ -40,14 +40,10 @@ def test_sarsa(iterations=1000, mlambda=None, n0=100, avg_it=50):
         for l in mlambda:
             game = Environment()
             agent = Agent(game, n0)
-            sarsa_Q = agent.TD_control(iterations, l, avg_it)
-            mse.append(np.sum(np.square(sarsa_Q-monte_carlo_Q))/n_elements)
-            sse.append(np.sum(np.square(sarsa_Q-monte_carlo_Q)))
+            l_mse = agent.TD_control(iterations, l, avg_it)
+            mse.append(l_mse)
 
         plt.plot(mlambda,mse)
-        plt.ylabel('mse')
-        plt.show()
-        plt.plot(mlambda,sse)
         plt.ylabel('mse')
         plt.show()
 
@@ -72,27 +68,22 @@ def test_linear_sarsa(iterations=1000, mlambda=None, n0=100, avg_it=100):
         for l in mlambda:
             game = Environment()
             agent = Agent(game, n0)
-            sarsa_Q = agent.TD_control_linear(iterations,l,avg_it)
-            mse.append(np.sum(np.square(sarsa_Q-monte_carlo_Q))/n_elements)
-            sse.append(np.sum(np.square(sarsa_Q-monte_carlo_Q)))
+            l_mse = agent.TD_control_linear(iterations,l,avg_it)
+            mse.append(l_mse)
 
         plt.plot(mlambda,mse)
         plt.ylabel('mse')
         plt.show()
-        plt.plot(mlambda,sse)
-        plt.ylabel('mse')
-        plt.show()
-
 
 if __name__ == '__main__':
 
     # parameters
     lambdas = [0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1]
     iterationsMC = 1000000
-    iterationsSRS = 500000
+    iterationsSRS = 1000
     n0 = 100
 
     # testing
     #test_monte_carlo(iterationsMC,n0)
-    #test_sarsa(iterationsSRS,lambdas,n0, avg_it=0)
-    test_linear_sarsa(iterationsSRS,mlambda=0.5,n0=n0, avg_it=0)
+    test_sarsa(iterationsSRS,lambdas,n0, avg_it=10)
+    #test_linear_sarsa(iterationsSRS,lambdas,n0, avg_it=5)

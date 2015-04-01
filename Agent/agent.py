@@ -137,55 +137,76 @@ class Agent:
         self.iter = iterations
         self.method = "Sarsa_control"
 
-        mse = []
-        count_wins = 0
+        l_mse = 0
+        e_mse = np.zeros((avg_it,self.iter))
 
-        # Loop over episodes (complete game runs)
-        for episode in xrange(self.iter):
+        monte_carlo_Q = pickle.load(open("Data/Qval_func_1000000_MC_control.pkl", "rb"))
+        n_elements = monte_carlo_Q.shape[0]*monte_carlo_Q.shape[1]*2
 
+        for my_it in xrange(avg_it):
+
+            self.N = np.zeros((self.env.dl_values, self.env.pl_values, self.env.act_values))
+            self.Q = np.zeros((self.env.dl_values, self.env.pl_values, self.env.act_values))
             self.E = np.zeros((self.env.dl_values, self.env.pl_values, self.env.act_values))
-            s = self.env.get_initial_state()
-            a = self.eps_greedy_choice(s)
+            count_wins = 0
 
-            # Execute until game ends
-            while not s.term:
+            # Loop over episodes (complete game runs)
+            for episode in xrange(self.iter):
 
-                # update visit count
-                self.N[s.dl_sum-1, s.pl_sum-1, Actions.get_value(a)] += 1
+                self.E = np.zeros((self.env.dl_values, self.env.pl_values, self.env.act_values))
+                s = self.env.get_initial_state()
+                a = self.eps_greedy_choice(s)
 
-                # execute action
-                s_next = self.env.step(s, a)
+                # Execute until game ends
+                while not s.term:
 
-                # choose next action with epsilon greedy policy
-                a_next = self.eps_greedy_choice(s_next)
+                    # update visit count
+                    self.N[s.dl_sum-1, s.pl_sum-1, Actions.get_value(a)] += 1
 
-                # update action value function
-                alpha = 1.0  / (self.N[s.dl_sum-1, s.pl_sum-1,  Actions.get_value(a)])
-                try:
-                    delta = s_next.rew + self.Q[s_next.dl_sum-1, s_next.pl_sum-1, Actions.get_value(a_next)] -\
-                        self.Q[s.dl_sum-1, s.pl_sum-1, Actions.get_value(a)]
-                except:
-                    delta = s_next.rew - self.Q[s.dl_sum-1, s.pl_sum-1, Actions.get_value(a)]
-                self.E[s.dl_sum-1, s.pl_sum-1, Actions.get_value(a)] += 1
+                    # execute action
+                    s_next = self.env.step(s, a)
 
-                update = alpha*delta*self.E
-                self.Q = self.Q+update
-                self.E = self.mlambda*self.E
+                    # choose next action with epsilon greedy policy
+                    a_next = self.eps_greedy_choice(s_next)
 
-                # reassign s and a
-                s = s_next
-                a = a_next
+                    # update action value function
+                    alpha = 1.0  / (self.N[s.dl_sum-1, s.pl_sum-1,  Actions.get_value(a)])
+                    try:
+                        delta = s_next.rew + self.Q[s_next.dl_sum-1, s_next.pl_sum-1, Actions.get_value(a_next)] -\
+                            self.Q[s.dl_sum-1, s.pl_sum-1, Actions.get_value(a)]
+                    except:
+                        delta = s_next.rew - self.Q[s.dl_sum-1, s.pl_sum-1, Actions.get_value(a)]
+                    self.E[s.dl_sum-1, s.pl_sum-1, Actions.get_value(a)] += 1
 
-            if episode%10000==0: print "Episode: %d, Reward: %d" %(episode, s_next.rew)
-            count_wins = count_wins+1 if s_next.rew==1 else count_wins
+                    update = alpha*delta*self.E
+                    self.Q = self.Q+update
+                    self.E = self.mlambda*self.E
 
-        print float(count_wins)/self.iter*100
+                    # reassign s and a
+                    s = s_next
+                    a = a_next
+
+                if episode%10000==0: print "Episode: %d, Reward: %d" %(episode, s_next.rew)
+                count_wins = count_wins+1 if s_next.rew==1 else count_wins
+
+                e_mse[my_it, episode] = np.sum(np.square(self.Q-monte_carlo_Q))/float(n_elements)
+
+            print float(count_wins)/self.iter*100
+            l_mse += np.sum(np.square(self.Q-monte_carlo_Q))/float(n_elements)
+            print n_elements
+
+        if mlambda==0 or mlambda==1:
+            plt.plot(e_mse.mean(axis=0))
+            plt.ylabel('mse vs episodes')
+            plt.show()
 
         # Derive value function
         for d in xrange(self.env.dl_values):
             for p in xrange(self.env.pl_values):
                 self.V[d,p] = max(self.Q[d, p, :])
-        return self.Q
+
+        return float(l_mse)/avg_it
+
 
     # play specified number of games, learning from experience using TD Control (Sarsa) with Linear Approximation
     def TD_control_linear(self, iterations, mlambda, avg_it):
@@ -193,64 +214,76 @@ class Agent:
         self.mlambda = float(mlambda)
         self.iter = iterations
         self.method = "Sarsa_control_linear_approx"
-        count_wins = 0
 
         features_num = len(self.theta)
         epsilon = 0.05
         alpha = 0.01
 
-        # Loop over episodes (complete game runs)
-        for episode in xrange(self.iter):
+        l_mse = 0
+        monte_carlo_Q = pickle.load(open("Data/Qval_func_1000000_MC_control.pkl", "rb"))
+        n_elements = monte_carlo_Q.shape[0]*monte_carlo_Q.shape[1]*2
 
+        for my_it in xrange(avg_it):
+
+            self.Q = np.zeros((self.env.dl_values, self.env.pl_values, self.env.act_values))
             self.LinE = np.zeros(len(self.d_edges)*len(self.p_edges)*2)
-            s = self.env.get_initial_state()
-            a = self.eps_greedy_choice_linear(s, epsilon)
-            phi = self.feature_computation(s,a)
+            self.theta = np.zeros(len(self.d_edges)*len(self.p_edges)*2)
+            count_wins = 0
 
-            # Execute until game ends
-            while not s.term:
+            # Loop over episodes (complete game runs)
+            for episode in xrange(self.iter):
 
-                # Accumulating traces
-                for i in np.nonzero(phi)[0]:
-                    self.LinE[i] += 1
+                self.LinE = np.zeros(len(self.d_edges)*len(self.p_edges)*2)
+                s = self.env.get_initial_state()
+                a = self.eps_greedy_choice_linear(s, epsilon)
+                phi = self.feature_computation(s,a)
 
-                # execute action
-                s_next = self.env.step(s, a)
+                # Execute until game ends
+                while not s.term:
 
-                # compute delta
-                delta = s_next.rew - sum(self.theta*phi)
+                    # Accumulating traces
+                    for i in np.nonzero(phi)[0]:
+                        self.LinE[i] += 1
 
-                # choose next action with epsilon greedy policy
-                [a_next, Qa] = self.eps_greedy_choice_linear(s_next, epsilon)
+                    # execute action
+                    s_next = self.env.step(s, a)
 
-                # delta
-                delta += Qa
-                self.theta += alpha*delta*self.LinE
-                self.LinE = self.mlambda*self.LinE
+                    # compute delta
+                    delta = s_next.rew - sum(self.theta*phi)
 
-                # reassign s and a
-                s = s_next
-                a = a_next
+                    # choose next action with epsilon greedy policy
+                    [a_next, Qa] = self.eps_greedy_choice_linear(s_next, epsilon)
 
-            if episode%10000==0: print "Episode: %d, Reward: %d" %(episode, s_next.rew)
-            count_wins = count_wins+1 if s_next.rew==1 else count_wins
+                    # delta
+                    delta += Qa
+                    self.theta += alpha*delta*self.LinE
+                    self.LinE = self.mlambda*self.LinE
 
-        print float(count_wins)/self.iter*100
+                    # reassign s and a
+                    s = s_next
+                    a = a_next
 
-        self.Q = self.deriveQ()
+                if episode%10000==0: print "Episode: %d, Reward: %d" %(episode, s_next.rew)
+                count_wins = count_wins+1 if s_next.rew==1 else count_wins
+
+            print float(count_wins)/self.iter*100
+
+            self.Q = self.deriveQ()
+            l_mse += np.sum(np.square(self.Q-monte_carlo_Q))
 
         # Derive value function
         for d in xrange(self.env.dl_values):
             for p in xrange(self.env.pl_values):
                 self.V[d,p] = max(self.Q[d, p, :])
 
-        return self.Q
+        return l_mse
 
 
     # derive Q from theta
     def deriveQ(self):
 
         temp_Q = np.zeros((self.env.dl_values, self.env.pl_values, self.env.act_values))
+
         for i in xrange(self.env.dl_values):
             for j in xrange(self.env.pl_values):
                 for k in xrange(self.env.act_values):
