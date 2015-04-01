@@ -1,0 +1,15 @@
+Reinforcement learning agent for learning to play to a modified version of blackjack
+the code is structured in two main classes
+
+- Agent:
+  different learning algorithms are available (Monte carlo, Sarsa(lambda), Sarsa(lambda) + Linear Approx)
+
+- Environment:
+  provides feedback to user's actions, by providing a state representation and a reward signal
+
+In order to test the system and see some relevant metrics concerning its performance
+you can run the file "testing.py"
+
+
+TODO
+plot learning vs episodes for lambda = 0 and lambda = 1
