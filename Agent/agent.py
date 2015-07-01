@@ -1,7 +1,4 @@
 
-###########
-# Imports #
-###########
 from Classes.classes import Actions, State
 import random
 import numpy as np
@@ -119,7 +116,7 @@ class Agent:
                 error = my_state.rew - self.Q[curr_s.dl_sum-1, curr_s.pl_sum-1, Actions.get_value(curr_a)]
                 self.Q[curr_s.dl_sum-1, curr_s.pl_sum-1, Actions.get_value(curr_a)] += step * error
 
-            if episode%10000==0: print "Episode: %d, Reward: %d" %(episode, my_state.rew)
+            #if episode%10000==0: print "Episode: %d, Reward: %d" %(episode, my_state.rew)
             count_wins = count_wins+1 if my_state.rew==1 else count_wins
 
         print float(count_wins)/self.iter*100
@@ -186,14 +183,14 @@ class Agent:
                     s = s_next
                     a = a_next
 
-                if episode%10000==0: print "Episode: %d, Reward: %d" %(episode, s_next.rew)
+                #if episode%10000==0: print "Episode: %d, Reward: %d" %(episode, s_next.rew)
                 count_wins = count_wins+1 if s_next.rew==1 else count_wins
 
                 e_mse[my_it, episode] = np.sum(np.square(self.Q-monte_carlo_Q))/float(n_elements)
 
             print float(count_wins)/self.iter*100
             l_mse += np.sum(np.square(self.Q-monte_carlo_Q))/float(n_elements)
-            print n_elements
+            #print n_elements
 
         if mlambda==0 or mlambda==1:
             plt.plot(e_mse.mean(axis=0))
@@ -215,11 +212,11 @@ class Agent:
         self.iter = iterations
         self.method = "Sarsa_control_linear_approx"
 
-        features_num = len(self.theta)
         epsilon = 0.05
         alpha = 0.01
 
         l_mse = 0
+        e_mse = np.zeros((avg_it,self.iter))
         monte_carlo_Q = pickle.load(open("Data/Qval_func_1000000_MC_control.pkl", "rb"))
         n_elements = monte_carlo_Q.shape[0]*monte_carlo_Q.shape[1]*2
 
@@ -227,23 +224,36 @@ class Agent:
 
             self.Q = np.zeros((self.env.dl_values, self.env.pl_values, self.env.act_values))
             self.LinE = np.zeros(len(self.d_edges)*len(self.p_edges)*2)
-            self.theta = np.zeros(len(self.d_edges)*len(self.p_edges)*2)
+            self.theta = np.random.random(36)*0.2
+            #self.theta = np.zeros(len(self.d_edges)*len(self.p_edges)*2)
             count_wins = 0
 
             # Loop over episodes (complete game runs)
             for episode in xrange(self.iter):
 
-                self.LinE = np.zeros(len(self.d_edges)*len(self.p_edges)*2)
+                self.LinE = np.zeros(36)
                 s = self.env.get_initial_state()
-                a = self.eps_greedy_choice_linear(s, epsilon)
-                phi = self.feature_computation(s,a)
+
+                if np.random.random() < 1-epsilon:
+                    Qa = -100000
+                    a = None
+                    for act in Actions.get_values():
+                        phi_curr = self.feature_computation(s,act)
+                        Q =  sum(self.theta*phi_curr)
+                        if Q > Qa:
+                            Qa = Q
+                            a = act
+                            phi = phi_curr
+                else:
+                    a = Actions.stick if np.random.random()<0.5 else Actions.hit
+                    phi = self.feature_computation(s,a)
+                    Qa = sum(self.theta*phi)
 
                 # Execute until game ends
                 while not s.term:
 
                     # Accumulating traces
-                    for i in np.nonzero(phi)[0]:
-                        self.LinE[i] += 1
+                    self.LinE[phi==1] += 1
 
                     # execute action
                     s_next = self.env.step(s, a)
@@ -252,7 +262,20 @@ class Agent:
                     delta = s_next.rew - sum(self.theta*phi)
 
                     # choose next action with epsilon greedy policy
-                    [a_next, Qa] = self.eps_greedy_choice_linear(s_next, epsilon)
+                    if np.random.random() < 1-epsilon:
+                        Qa = float(-100000)
+                        a = None
+                        for act in Actions.get_values():
+                            phi_curr = self.feature_computation(s_next,act)
+                            Q =  sum(self.theta*phi_curr)
+                            if Q > Qa:
+                                Qa = Q
+                                a = act
+                                phi = phi_curr
+                    else:
+                        a = Actions.stick if np.random.random()<0.5 else Actions.hit
+                        phi = self.feature_computation(s_next,a)
+                        Qa = sum(self.theta*phi)
 
                     # delta
                     delta += Qa
@@ -261,22 +284,30 @@ class Agent:
 
                     # reassign s and a
                     s = s_next
-                    a = a_next
 
-                if episode%10000==0: print "Episode: %d, Reward: %d" %(episode, s_next.rew)
+                #if episode%10000==0: print "Episode: %d, Reward: %d" %(episode, s_next.rew)
                 count_wins = count_wins+1 if s_next.rew==1 else count_wins
+
+                self.Q = self.deriveQ()
+                e_mse[my_it, episode] = np.sum(np.square(self.Q-monte_carlo_Q))/float(n_elements)
 
             print float(count_wins)/self.iter*100
 
             self.Q = self.deriveQ()
             l_mse += np.sum(np.square(self.Q-monte_carlo_Q))
 
+        if mlambda==0 or mlambda==1:
+            plt.plot(e_mse.mean(axis=0))
+            plt.ylabel('mse vs episodes')
+            plt.show()
         # Derive value function
         for d in xrange(self.env.dl_values):
             for p in xrange(self.env.pl_values):
                 self.V[d,p] = max(self.Q[d, p, :])
 
-        return l_mse
+        #print self.theta
+
+        return l_mse/float(n_elements)
 
 
     # derive Q from theta
@@ -296,21 +327,21 @@ class Agent:
     def feature_computation(self, state, action):
 
         # initialise
-        count2 = 0
-        feature_vect = np.zeros((len(self.d_edges),len(self.p_edges),2))
+        feature_vect = []
 
-        # compute feature vector
-        for a,b in self.d_edges:
-            count1 = 0
-            for c,d in self.p_edges:
-                if state.dl_sum>=a and state.dl_sum<=b and state.pl_sum>=c and state.pl_sum<=d:
-                    feature_vect[count2,count1,Actions.get_value(action)] = 1
-                count1 += 1
-            count2 += 1
+        for i in range(len(self.p_edges)):
+            for j in range(len(self.d_edges)):
+                p = self.p_edges[i]
+                d = self.p_edges[j]
+                if p[0] <= state.pl_sum <= p[1] and d[0] <= state.dl_sum <= d[1]:
+                    feature_vect.append(1)
+                else:
+                    feature_vect.append(0)
 
-        # reshape it
-        f = np.concatenate([feature_vect[:,:,0].reshape((1,len(self.d_edges)*len(self.p_edges)))[0],feature_vect[:,:,1].reshape((1,len(self.d_edges)*len(self.p_edges)))[0]])
-        return f
+        if action == Actions.hit:
+            return np.concatenate([np.array(feature_vect), np.zeros(18)])
+        else:
+            return np.concatenate([np.zeros(18),np.array(feature_vect)])
 
 
     # store in a txt file
