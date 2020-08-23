@@ -15,10 +15,10 @@ you can run the file "testing.py"
 
 ## Structure
 
-the code is structured in two main classes
+The code is structured in two main classes
 
 - Agent:
-  different learning algorithms are available
+  Implementing a suitable RL algorithm.
 
 - Environment:
-  provides feedback to user's actions, by providing a state representation and a reward signal
+  Provides feedback to user's actions, by providing a state representation and a reward signal
