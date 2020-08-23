@@ -18,7 +18,7 @@ you can run the file "testing.py"
 The code is structured in two main classes
 
 - Agent:
-  Implementing a suitable RL algorithm to learn to play blackjack from experience.
+  Implements a suitable reinforcement learning algorithm to learn to play blackjack from experience.
 
 - Environment:
   Provides feedback to user's actions, by providing a state representation and a reward signal.
